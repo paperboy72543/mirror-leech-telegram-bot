@@ -98,6 +98,17 @@ async def get_online_packages(path, state="grabbing"):
         return [dl["uuid"] for dl in download_packages if dl["saveTo"].startswith(path)]
 
 
+def trim_path(path):
+    path_components = path.split("/")
+
+    trimmed_components = [
+        component[:255] if len(component) > 255 else component
+        for component in path_components
+    ]
+
+    return "/".join(trimmed_components)
+
+
 async def add_jd_download(listener, path):
     try:
         async with jd_lock:
@@ -168,6 +179,7 @@ async def add_jd_download(listener, path):
                             "bytesTotal": True,
                             "saveTo": True,
                             "availableOnlineCount": True,
+                            "availableOfflineCount": True,
                             "availableTempUnknownCount": True,
                             "availableUnknownCount": True,
                         }
@@ -195,16 +207,19 @@ async def add_jd_download(listener, path):
                             )[0]
                         else:
                             name = save_to.replace(f"{path}/", "", 1).split("/", 1)[0]
+                        name = name[:255]
 
                     if (
                         pack.get("tempUnknownCount", 0) > 0
                         or pack.get("unknownCount", 0) > 0
+                        or pack.get("offlineCount", 0) > 0
                     ):
                         remove_unknown = True
 
                     listener.size += pack.get("bytesTotal", 0)
                     online_packages.append(pack["uuid"])
                     if save_to.startswith("/root/Downloads/"):
+                        save_to = trim_path(save_to)
                         await retry_function(
                             jdownloader.device.linkgrabber.set_download_directory,
                             save_to.replace("/root/Downloads", path, 1),
